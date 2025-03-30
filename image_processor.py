@@ -3,68 +3,96 @@ import threading
 import cv2
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from PIL import Image, ImageTk
+from PIL import Image
 
-def open_directory():
-    folder_selected = filedialog.askdirectory(title="Chọn thư mục chứa ảnh")
-    if folder_selected:
+# Hàm mở thư mục chứa ảnh và liệt kê các file ảnh vào Listbox
+def mo_thu_muc():
+    thu_muc = filedialog.askdirectory(title="Chọn thư mục chứa ảnh")
+    if thu_muc:
         listbox.delete(0, tk.END)
-        for filename in os.listdir(folder_selected):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                listbox.insert(tk.END, filename)
+        for ten_file in os.listdir(thu_muc):
+            if ten_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                listbox.insert(tk.END, ten_file)
         if listbox.size() == 0:
             messagebox.showinfo("Thông báo", "Thư mục không chứa ảnh hợp lệ!")
         else:
-            process_images(folder_selected)
+            xu_ly_anh(thu_muc)
 
-def process_images(folder):
-    # Tạo thư mục lưu ảnh nếu chưa có
+# Hàm xử lý ảnh: nhận diện khuôn mặt, crop và lưu vào thư mục "cropped_faces"
+def xu_ly_anh(thu_muc):
     os.makedirs("cropped_faces", exist_ok=True)
 
     def process():
-        total = listbox.size()
-        for i, filename in enumerate(listbox.get(0, tk.END)):
-            filepath = os.path.join(folder, filename)
-            print(f"Đang xử lý ảnh: {filepath}")
-            image = cv2.imread(filepath)
-            if image is None:
-                print(f"Không đọc được ảnh: {filepath}")
+        tong = listbox.size()
+        for i, ten_file in enumerate(listbox.get(0, tk.END)):
+            duong_dan = os.path.join(thu_muc, ten_file)
+            print(f"Đang xử lý ảnh: {duong_dan}")
+            anh = cv2.imread(duong_dan)
+            if anh is None:
+                print(f"Không đọc được ảnh: {duong_dan}")
                 continue
             try:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                anh_gray = cv2.cvtColor(anh, cv2.COLOR_BGR2GRAY)
             except Exception as e:
-                print(f"Lỗi chuyển đổi sang gray cho ảnh {filename}: {e}")
+                print(f"Lỗi chuyển đổi ảnh {ten_file} sang grayscale: {e}")
                 continue
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-            print(f"Số khuôn mặt tìm được trong {filename}: {len(faces)}")
+
+            faces = face_cascade.detectMultiScale(anh_gray, scaleFactor=1.1, minNeighbors=4)
+            print(f"Trong ảnh {ten_file} tìm được {len(faces)} khuôn mặt")
             for (x, y, w, h) in faces:
-                face = image[y:y+h, x:x+w]
-                save_path = os.path.join("cropped_faces", f"cropped_{filename}")
-                cv2.imwrite(save_path, face)
-            progress_var.set((i + 1) / total * 100)
+                khuon_mat = anh[y:y+h, x:x+w]
+                duong_luu = os.path.join("cropped_faces", f"crop_{ten_file}")
+                cv2.imwrite(duong_luu, khuon_mat)
+            progress_var.set((i + 1) / tong * 100)
             progress_bar.update_idletasks()
-        messagebox.showinfo("Hoàn thành", "Xử lý ảnh đã hoàn thành. Kiểm tra thư mục 'cropped_faces'.")
+        messagebox.showinfo("Hoàn thành", "Xử lý ảnh đã hoàn thành.\nKiểm tra thư mục 'cropped_faces'.")
     threading.Thread(target=process, daemon=True).start()
 
-# Initialize GUI
+# ----------------- Giao diện -----------------
 root = tk.Tk()
-root.title("Image Processor")
-root.geometry("500x400")
+root.title("Trình Xử Lý Ảnh Nhận Diện Khuôn Mặt")
+root.geometry("550x500")
+root.configure(bg="#f7f7f7")
 
-# Listbox hiển thị tên ảnh
-listbox = tk.Listbox(root, width=50)
-listbox.pack(pady=10)
+# Tùy chỉnh Style cho ttk
+style = ttk.Style(root)
+style.theme_use("clam")
+style.configure("TButton", font=("Segoe UI", 10, "bold"), foreground="#ffffff", background="#4a90e2", padding=6)
+style.map("TButton", background=[("active", "#357ABD")])
+style.configure("TLabel", font=("Segoe UI", 10), background="#f7f7f7")
+style.configure("TEntry", font=("Segoe UI", 10))
 
-# Button mở thư mục
-open_button = tk.Button(root, text="Open Directory", command=open_directory)
-open_button.pack(pady=5)
+# Frame chứa nút và entry trên đầu
+frame_top = tk.Frame(root, bg="#f7f7f7")
+frame_top.pack(fill=tk.X, pady=15, padx=15)
 
-# Progress Bar
+btn_mo = ttk.Button(frame_top, text="Mở thư mục", command=mo_thu_muc)
+btn_mo.pack(side=tk.LEFT, padx=5)
+
+# Frame danh sách ảnh
+frame_list = tk.Frame(root, bg="white", bd=2, relief=tk.RIDGE)
+frame_list.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+
+label_list = ttk.Label(frame_list, text="Danh sách ảnh:", font=("Segoe UI", 11, "bold"))
+label_list.pack(anchor="w", padx=10, pady=5)
+
+# Listbox kèm Scrollbar
+scrollbar = tk.Scrollbar(frame_list)
+scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+listbox = tk.Listbox(frame_list, font=("Segoe UI", 10), bd=0, yscrollcommand=scrollbar.set)
+listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+scrollbar.config(command=listbox.yview)
+
+# Frame chứa progress bar
+frame_progress = tk.Frame(root, bg="#f7f7f7")
+frame_progress.pack(fill=tk.X, padx=15, pady=10)
+
 progress_var = tk.DoubleVar()
-progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100)
-progress_bar.pack(pady=10, fill=tk.X)
+progress_bar = ttk.Progressbar(frame_progress, variable=progress_var, maximum=100)
+progress_bar.pack(fill=tk.X, padx=10, pady=10)
 
-# Load model nhận diện khuôn mặt
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+# Load mô hình nhận diện khuôn mặt của OpenCV
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 root.mainloop()
